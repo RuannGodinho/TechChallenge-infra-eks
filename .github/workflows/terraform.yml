@@ -1,0 +1,115 @@
+name: Terraform
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Terraform action
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      confirm:
+        description: Type "yes" to confirm apply or destroy
+        required: false
+        default: ""
+
+concurrency:
+  group: terraform-eks
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm apply or destroy
+        if: (inputs.action == 'apply' || inputs.action == 'destroy') && inputs.confirm != 'yes'
+        run: |
+          echo "::error::${{ inputs.action }} requires confirm=yes."
+          exit 1
+
+      - name: Block production state key
+        env:
+          TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+        run: |
+          KEY="${TF_STATE_KEY:-split/eks/terraform.tfstate}"
+          if [ "$KEY" = "eks/terraform.tfstate" ]; then
+            echo "::error::Refusing to use production state key eks/terraform.tfstate. Keep TF_STATE_KEY=split/eks/terraform.tfstate until cutover."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ vars.TF_AWS_REGION || 'us-east-1' }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Write backend.hcl
+        env:
+          TF_BACKEND_HCL: ${{ secrets.TF_BACKEND_HCL }}
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+          TF_AWS_REGION: ${{ vars.TF_AWS_REGION }}
+          TF_STATE_KEY: ${{ vars.TF_STATE_KEY }}
+        run: |
+          if [ -n "$TF_BACKEND_HCL" ]; then
+            printf '%s\n' "$TF_BACKEND_HCL" > backend.hcl
+          elif [ -n "$TF_STATE_BUCKET" ]; then
+            printf '%s\n' \
+              "bucket       = \"${TF_STATE_BUCKET}\"" \
+              "key          = \"${TF_STATE_KEY:-split/eks/terraform.tfstate}\"" \
+              "region       = \"${TF_AWS_REGION:-us-east-1}\"" \
+              "encrypt      = true" \
+              "use_lockfile = true" \
+              > backend.hcl
+          else
+            echo "::error::Run the Terraform Bootstrap workflow first (or set TF_STATE_BUCKET / TF_BACKEND_HCL secrets)."
+            exit 1
+          fi
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Prepare terraform.tfvars
+        run: cp terraform.tfvars.example terraform.tfvars
+
+      - name: Terraform init
+        run: terraform init -upgrade -backend-config=backend.hcl
+
+      - name: Terraform validate
+        run: terraform validate
+
+      - name: Terraform plan
+        if: inputs.action == 'plan'
+        run: terraform plan -no-color
+
+      - name: Terraform apply
+        if: inputs.action == 'apply' && inputs.confirm == 'yes'
+        run: terraform apply -auto-approve
+
+      - name: Terraform destroy
+        if: inputs.action == 'destroy' && inputs.confirm == 'yes'
+        run: terraform destroy -auto-approve
+
+      - name: Write job summary
+        if: inputs.action == 'apply' && inputs.confirm == 'yes'
+        run: |
+          {
+            echo "## EKS cluster outputs"
+            echo ""
+            echo "**Cluster:** \`$(terraform output -raw cluster_name)\`"
+            echo ""
+            echo "**Backend URL:** \`$(terraform output -raw eks_backend_url)\`"
+            echo ""
+            echo "**kubectl:**"
+            echo '```'
+            terraform output -raw configure_kubectl
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,108 @@
+name: Terraform Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: Terraform action
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+      confirm:
+        description: Type "yes" to confirm apply
+        required: false
+        default: ""
+
+concurrency:
+  group: terraform-bootstrap
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bootstrap
+
+    steps:
+      - name: Confirm apply
+        if: inputs.action == 'apply' && inputs.confirm != 'yes'
+        run: |
+          echo "::error::Apply requires confirm=yes."
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.11.0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Restore bootstrap state from S3
+        env:
+          TF_STATE_BUCKET: ${{ secrets.TF_STATE_BUCKET }}
+        run: |
+          if [ -n "$TF_STATE_BUCKET" ]; then
+            aws s3 cp "s3://${TF_STATE_BUCKET}/bootstrap/terraform.tfstate" terraform.tfstate || true
+          else
+            echo "TF_STATE_BUCKET not set — skipping state restore (first run)."
+          fi
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform plan
+        if: inputs.action == 'plan' || inputs.action == 'apply'
+        run: terraform plan -no-color -out=tfplan
+
+      - name: Terraform apply
+        if: inputs.action == 'apply' && inputs.confirm == 'yes'
+        run: terraform apply -auto-approve tfplan
+
+      - name: Persist bootstrap state to S3
+        if: inputs.action == 'apply' && inputs.confirm == 'yes'
+        run: |
+          BUCKET=$(terraform output -raw state_bucket_name)
+          aws s3 cp terraform.tfstate "s3://${BUCKET}/bootstrap/terraform.tfstate"
+
+      - name: Write job summary
+        if: inputs.action == 'apply' && inputs.confirm == 'yes'
+        run: |
+          {
+            echo "## Terraform Bootstrap outputs"
+            echo ""
+            echo "**State bucket:** \`$(terraform output -raw state_bucket_name)\`"
+            echo ""
+            echo "**Backend config (\`backend.hcl\`):**"
+            echo '```hcl'
+            terraform output -raw backend_config_snippet
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push outputs to GitHub Secrets
+        if: inputs.action == 'apply' && inputs.confirm == 'yes'
+        env:
+          GH_TOKEN: ${{ secrets.GH_REPO_PAT }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::GH_REPO_PAT secret is required to auto-set TF_STATE_BUCKET and TF_BACKEND_HCL."
+            exit 1
+          fi
+
+          BUCKET=$(terraform output -raw state_bucket_name)
+          echo -n "$BUCKET" | gh secret set TF_STATE_BUCKET --repo "${{ github.repository }}"
+          terraform output -raw backend_config_snippet | gh secret set TF_BACKEND_HCL --repo "${{ github.repository }}"
+          gh variable set TF_AWS_REGION --body "us-east-1" --repo "${{ github.repository }}"
+          gh variable set TF_STATE_KEY --body "split/eks/terraform.tfstate" --repo "${{ github.repository }}"
+
+          echo "Auto-set TF_STATE_BUCKET, TF_BACKEND_HCL, TF_AWS_REGION, and TF_STATE_KEY=split/eks/terraform.tfstate."

@@ -1,0 +1,26 @@
+# Default profile: personal AWS account.
+# cp terraform.tfvars.example terraform.tfvars
+# Academy: cp terraform.tfvars.academy.example terraform.tfvars
+
+aws_region         = "us-east-1"
+cluster_name       = "techchallenge-eks"
+kubernetes_version = "1.31"
+
+use_lab_role         = false
+create_iam_resources = true
+
+node_instance_types = ["t3.small"]
+node_capacity_type  = "SPOT"
+node_desired_size   = 2
+node_min_size       = 1
+node_max_size       = 2
+node_disk_size      = 20
+coredns_replica_count = 1
+
+enable_ebs_csi = true
+
+allowed_api_cidr = "0.0.0.0/0"
+
+# Published to SSM for TechChallenge-lambda-auth and TechChallenge-infra-db
+# ssm_prefix   = "/techchallenge"
+# api_node_port = 30080
