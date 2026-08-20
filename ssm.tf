@@ -64,11 +64,9 @@ resource "aws_ssm_parameter" "node_security_group_id" {
 }
 
 resource "aws_ssm_parameter" "backend_url" {
-  count = local.eks_backend_url != "" ? 1 : 0
-
   name        = "${var.ssm_prefix}/eks/backend_url"
-  description = "HTTP URL for API Gateway → NodePort (http://<node-ip>:30080)"
+  description = "HTTP URL for API Gateway to NodePort (http://<node-ip>:30080). pending until the node public IP is known."
   type        = "String"
-  value       = local.eks_backend_url
+  value       = local.eks_backend_url != "" ? local.eks_backend_url : "pending"
   tags        = local.common_tags
 }
