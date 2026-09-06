@@ -4,6 +4,10 @@ Infraestrutura Kubernetes (Amazon EKS) em Terraform: VPC, cluster, node group, a
 
 > **Não aplique este stack contra o state de produção (`eks/terraform.tfstate`) enquanto o monorepo [TechChallenge-Fiap](https://github.com/RuannGodinho/TechChallenge-Fiap) ainda gerenciar o cluster.** O backend padrão usa `split/eks/terraform.tfstate`. O workflow recusa a key de produção.
 
+## Documentação
+
+Arquitetura, RFCs e ADRs **deste** repo: [docs/](docs/README.md) (AWS, EKS, NodePort, Terraform). Índice da solução: [TechChallenge-Fiap / docs/ARQUITETURA.md](https://github.com/RuannGodinho/TechChallenge-Fiap/blob/main/docs/ARQUITETURA.md).
+
 ## Repositórios
 
 | Repo | Função |
