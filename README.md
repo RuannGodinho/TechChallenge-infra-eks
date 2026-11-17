@@ -153,13 +153,13 @@ O NodePort original 30080 (Orders) é preservado. Execution usa 30081 e Billing 
 
 SSM publica /techchallenge/eks/backend_url, /techchallenge/eks/execution_backend_url e /techchallenge/eks/billing_backend_url, além dos outputs Terraform correspondentes. As três URLs usam o mesmo IP público de node selecionado pelo padrão existente. Após substituição do node (inclusive Spot), atualizar o Terraform deste repo e do lambda-auth para atualizar SSM/integrações; esse padrão não oferece endpoint estável por si só.
 
-Sem novo cluster, load balancer ou alteração de quantidade/tipo de nodes/discos. A versão do Kubernetes segue a configuração e o procedimento de atualização abaixo. Os aplicativos têm 6 pods base e HPA 1–4 por API; bancos/broker e componentes de sistema são adicionais. O limite de HPA não assegura capacidade de nodes. Revisar o plano antes de apply e medir capacidade no cluster. Perfis de capacidade e estados existentes são preservados.
+O perfil de teste usa dois nodes `t3.medium` Spot como capacidade desejada, com `node_min_size=1`, `node_desired_size=2` e `node_max_size=2`, e disco de 20 GiB por node. O workflow Terraform copia `terraform.tfvars.example`, alinhado aos defaults de `variables.tf`. O HPA escala os pods das APIs; a configuração atual não inclui um autoscaler de nodes. A versão do Kubernetes segue a configuração e o procedimento de atualização abaixo. Os aplicativos têm 6 pods base e HPA 1–4 por API; bancos/broker e componentes de sistema são adicionais. O limite de HPA não assegura capacidade de nodes. Revisar o plano antes de apply e medir capacidade no cluster, incluindo o `maxPods` efetivo de cada node.
 
 ## Versão do EKS e atualização
 
 O alvo padrão e o terraform.tfvars.example usam **1.37**, em suporte padrão até 01/12/2027 no [calendário EKS](https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html), consultado em 16/11/2026. Isso evita a tarifa de suporte estendido da 1.31 após a implantação; a alteração de arquivos não muda a cobrança de um cluster existente.
 
-O managed node group acompanha aws_eks_cluster.main.version. VPC CNI, CoreDNS e EBS CSI, já gerenciados neste stack, passam a resolver explicitamente a versão compatível padrão da AWS para kubernetes_version. Não foi adicionado outro componente. Quantidade/tipo de nodes, SPOT, volumes, HPA e estados permanecem iguais.
+O managed node group acompanha aws_eks_cluster.main.version. VPC CNI, CoreDNS e EBS CSI, já gerenciados neste stack, passam a resolver explicitamente a versão compatível padrão da AWS para kubernetes_version. O perfil de nodes é o descrito acima; capacidade Spot, volumes, HPA e estados seguem a estrutura existente.
 
 Para um **cluster novo**, revisar o plano com o alvo 1.37. Para um **cluster existente em 1.31**, não aplicar diretamente o alvo final: a AWS permite apenas um minor por etapa, seguindo 1.31 → 1.32 → 1.33 → 1.34 → 1.35 → 1.36 → 1.37. Antes de cada etapa, revisar Upgrade Insights, APIs removidas, versões dos nodes e compatibilidade dos add-ons; o apply não automatiza essa auditoria. Usar o backend/state que já possui o cluster, mantendo a proteção de state existente neste repo.
 

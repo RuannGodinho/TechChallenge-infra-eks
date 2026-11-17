@@ -9,7 +9,7 @@ kubernetes_version = "1.37"
 use_lab_role         = false
 create_iam_resources = true
 
-node_instance_types = ["t3.small"]
+node_instance_types = ["t3.medium"]
 node_capacity_type  = "SPOT"
 node_desired_size   = 2
 node_min_size       = 1
