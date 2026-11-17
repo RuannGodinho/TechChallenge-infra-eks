@@ -146,3 +146,34 @@ kubectl get nodes
 | [RFC-008](docs/rfcs/008-nodeport-sem-alb.md) / [ADR-008](docs/adrs/008-nodeport-sem-alb.md) | NodePort sem ALB |
 | [RFC-010](docs/rfcs/010-terraform-iac.md) / [ADR-010](docs/adrs/010-terraform-iac.md) | Terraform |
 | [Índice da solução](https://github.com/RuannGodinho/TechChallenge-Fiap/blob/main/docs/ARQUITETURA.md) | Checklist do enunciado |
+
+## Integração dos três serviços
+
+O NodePort original 30080 (Orders) é preservado. Execution usa 30081 e Billing 30082, liberados pelo mesmo allowed_api_cidr; os Services correspondentes ficam nos repositórios de aplicação. api_node_port, execution_node_port e billing_node_port devem coincidir com esses manifests.
+
+SSM publica /techchallenge/eks/backend_url, /techchallenge/eks/execution_backend_url e /techchallenge/eks/billing_backend_url, além dos outputs Terraform correspondentes. As três URLs usam o mesmo IP público de node selecionado pelo padrão existente. Após substituição do node (inclusive Spot), atualizar o Terraform deste repo e do lambda-auth para atualizar SSM/integrações; esse padrão não oferece endpoint estável por si só.
+
+Sem novo cluster, load balancer ou alteração de quantidade/tipo de nodes/discos. A versão do Kubernetes segue a configuração e o procedimento de atualização abaixo. Os aplicativos têm 6 pods base e HPA 1–4 por API; bancos/broker e componentes de sistema são adicionais. O limite de HPA não assegura capacidade de nodes. Revisar o plano antes de apply e medir capacidade no cluster. Perfis de capacidade e estados existentes são preservados.
+
+## Versão do EKS e atualização
+
+O alvo padrão e o terraform.tfvars.example usam **1.37**, em suporte padrão até 01/12/2027 no [calendário EKS](https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions.html), consultado em 16/11/2026. Isso evita a tarifa de suporte estendido da 1.31 após a implantação; a alteração de arquivos não muda a cobrança de um cluster existente.
+
+O managed node group acompanha aws_eks_cluster.main.version. VPC CNI, CoreDNS e EBS CSI, já gerenciados neste stack, passam a resolver explicitamente a versão compatível padrão da AWS para kubernetes_version. Não foi adicionado outro componente. Quantidade/tipo de nodes, SPOT, volumes, HPA e estados permanecem iguais.
+
+Para um **cluster novo**, revisar o plano com o alvo 1.37. Para um **cluster existente em 1.31**, não aplicar diretamente o alvo final: a AWS permite apenas um minor por etapa, seguindo 1.31 → 1.32 → 1.33 → 1.34 → 1.35 → 1.36 → 1.37. Antes de cada etapa, revisar Upgrade Insights, APIs removidas, versões dos nodes e compatibilidade dos add-ons; o apply não automatiza essa auditoria. Usar o backend/state que já possui o cluster, mantendo a proteção de state existente neste repo.
+
+No fluxo CLI existente, um override permite revisar e aplicar cada etapa separadamente:
+
+```bash
+# Exemplo: apenas a primeira etapa de um cluster que ainda está em 1.31.
+terraform plan -var='kubernetes_version=1.32' -out=upgrade.tfplan
+terraform apply upgrade.tfplan
+# Validar nodes, add-ons e workloads antes de planejar o próximo minor.
+```
+
+Não executar uma sequência automática sem validação intermediária. O workflow existente copia terraform.tfvars.example; portanto seu alvo padrão é 1.37 e ele não deve ser usado para saltar versões de um cluster antigo.
+
+Os nodes atuais precisam estar no mesmo minor do control plane antes da próxima etapa. Conferir a AMI atual: Amazon Linux 2 não tem imagem EKS para 1.34+; caso um node group antigo use AL2, migrá-lo para AL2023 antes dessas etapas, em uma mudança própria, sem remover o grupo que ainda atende os pods. Ver [guia de atualização da AWS](https://docs.aws.amazon.com/eks/latest/userguide/update-cluster.html) e [notas das versões](https://docs.aws.amazon.com/eks/latest/userguide/kubernetes-versions-standard.html).
+
+kube-proxy não é gerenciado por este stack: verificar e atualizar a instalação existente em cada etapa. Validar também Metrics Server, New Relic, EBS CSI/PVCs, DNS e HPA no cluster. Validação local de Terraform e schemas não comprova o funcionamento desses componentes no EKS. Nenhum apply AWS foi executado nesta alteração.

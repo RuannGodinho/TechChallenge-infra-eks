@@ -4,7 +4,7 @@
 
 aws_region         = "us-east-1"
 cluster_name       = "techchallenge-eks"
-kubernetes_version = "1.31"
+kubernetes_version = "1.37"
 
 use_lab_role         = false
 create_iam_resources = true
@@ -24,3 +24,6 @@ allowed_api_cidr = "0.0.0.0/0"
 # Published to SSM for TechChallenge-lambda-auth and TechChallenge-infra-db
 # ssm_prefix   = "/techchallenge"
 # api_node_port = 30080
+
+# execution_node_port = 30081
+# billing_node_port = 30082

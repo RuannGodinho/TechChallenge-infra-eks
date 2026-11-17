@@ -74,8 +74,28 @@ resource "aws_security_group_rule" "node_api_nodeport" {
   description       = "API NodePort from k8s/Api-service.yml"
   type              = "ingress"
   security_group_id = aws_security_group.node.id
-  from_port         = 30080
-  to_port           = 30080
+  from_port         = var.api_node_port
+  to_port           = var.api_node_port
+  protocol          = "tcp"
+  cidr_blocks       = [var.allowed_api_cidr]
+}
+
+resource "aws_security_group_rule" "node_execution_nodeport" {
+  description       = "Execution API NodePort from k8s/Api-service.yml"
+  type              = "ingress"
+  security_group_id = aws_security_group.node.id
+  from_port         = var.execution_node_port
+  to_port           = var.execution_node_port
+  protocol          = "tcp"
+  cidr_blocks       = [var.allowed_api_cidr]
+}
+
+resource "aws_security_group_rule" "node_billing_nodeport" {
+  description       = "Billing API NodePort from k8s/Api-service.yml"
+  type              = "ingress"
+  security_group_id = aws_security_group.node.id
+  from_port         = var.billing_node_port
+  to_port           = var.billing_node_port
   protocol          = "tcp"
   cidr_blocks       = [var.allowed_api_cidr]
 }

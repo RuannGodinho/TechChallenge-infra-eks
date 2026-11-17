@@ -1,3 +1,12 @@
+# Resolve AWS's default compatible versions for the addons already managed here.
+data "aws_eks_addon_version" "compatible" {
+  for_each = var.enable_ebs_csi ? toset(["vpc-cni", "coredns", "aws-ebs-csi-driver"]) : toset([])
+
+  addon_name         = each.value
+  kubernetes_version = var.kubernetes_version
+  most_recent        = false
+}
+
 # Node group is ACTIVE before EC2 instances join the cluster as Ready.
 resource "time_sleep" "wait_for_nodes" {
   count = var.enable_ebs_csi ? 1 : 0
@@ -16,6 +25,7 @@ resource "aws_eks_addon" "vpc_cni" {
 
   cluster_name                = aws_eks_cluster.main.name
   addon_name                  = "vpc-cni"
+  addon_version               = data.aws_eks_addon_version.compatible["vpc-cni"].version
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
@@ -38,6 +48,7 @@ resource "aws_eks_addon" "coredns" {
 
   cluster_name                = aws_eks_cluster.main.name
   addon_name                  = "coredns"
+  addon_version               = data.aws_eks_addon_version.compatible["coredns"].version
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
@@ -73,6 +84,7 @@ resource "aws_eks_addon" "ebs_csi_lab" {
 
   cluster_name                = aws_eks_cluster.main.name
   addon_name                  = "aws-ebs-csi-driver"
+  addon_version               = data.aws_eks_addon_version.compatible["aws-ebs-csi-driver"].version
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
@@ -99,6 +111,7 @@ resource "aws_eks_addon" "ebs_csi" {
 
   cluster_name                = aws_eks_cluster.main.name
   addon_name                  = "aws-ebs-csi-driver"
+  addon_version               = data.aws_eks_addon_version.compatible["aws-ebs-csi-driver"].version
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
   service_account_role_arn    = local.ebs_csi_role_arn

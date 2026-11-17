@@ -18,9 +18,11 @@ data "aws_instances" "eks_nodes" {
 }
 
 locals {
-  eks_node_public_ips = try(data.aws_instances.eks_nodes.public_ips, [])
-  eks_node_public_ip  = length(local.eks_node_public_ips) > 0 ? local.eks_node_public_ips[0] : ""
-  eks_backend_url     = local.eks_node_public_ip != "" ? "http://${local.eks_node_public_ip}:${var.api_node_port}" : ""
+  eks_node_public_ips   = try(data.aws_instances.eks_nodes.public_ips, [])
+  eks_node_public_ip    = length(local.eks_node_public_ips) > 0 ? local.eks_node_public_ips[0] : ""
+  eks_backend_url       = local.eks_node_public_ip != "" ? "http://${local.eks_node_public_ip}:${var.api_node_port}" : ""
+  execution_backend_url = local.eks_node_public_ip != "" ? "http://${local.eks_node_public_ip}:${var.execution_node_port}" : ""
+  billing_backend_url   = local.eks_node_public_ip != "" ? "http://${local.eks_node_public_ip}:${var.billing_node_port}" : ""
 }
 
 resource "aws_ssm_parameter" "cluster_name" {
@@ -68,5 +70,21 @@ resource "aws_ssm_parameter" "backend_url" {
   description = "HTTP URL for API Gateway to NodePort (http://<node-ip>:30080). pending until the node public IP is known."
   type        = "String"
   value       = local.eks_backend_url != "" ? local.eks_backend_url : "pending"
+  tags        = local.common_tags
+}
+
+resource "aws_ssm_parameter" "execution_backend_url" {
+  name        = "${var.ssm_prefix}/eks/execution_backend_url"
+  description = "Execution HTTP URL for API Gateway to NodePort. pending until the node public IP is known."
+  type        = "String"
+  value       = local.execution_backend_url != "" ? local.execution_backend_url : "pending"
+  tags        = local.common_tags
+}
+
+resource "aws_ssm_parameter" "billing_backend_url" {
+  name        = "${var.ssm_prefix}/eks/billing_backend_url"
+  description = "Billing HTTP URL for API Gateway to NodePort. pending until the node public IP is known."
+  type        = "String"
+  value       = local.billing_backend_url != "" ? local.billing_backend_url : "pending"
   tags        = local.common_tags
 }
