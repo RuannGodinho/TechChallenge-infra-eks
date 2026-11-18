@@ -63,6 +63,16 @@ output "eks_backend_url" {
   value       = local.eks_backend_url
 }
 
+output "execution_backend_url" {
+  description = "Execution HTTP URL for API Gateway to NodePort"
+  value       = local.execution_backend_url
+}
+
+output "billing_backend_url" {
+  description = "Billing HTTP URL for API Gateway to NodePort"
+  value       = local.billing_backend_url
+}
+
 output "ssm_prefix" {
   description = "SSM parameter prefix published for sibling repos"
   value       = var.ssm_prefix

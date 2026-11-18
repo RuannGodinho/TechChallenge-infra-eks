@@ -25,7 +25,7 @@ variable "cluster_name" {
 variable "kubernetes_version" {
   description = "Kubernetes version for the EKS control plane (see AWS EKS version lifecycle)"
   type        = string
-  default     = "1.31"
+  default     = "1.37"
 }
 
 variable "vpc_cidr" {
@@ -37,7 +37,7 @@ variable "vpc_cidr" {
 variable "node_instance_types" {
   description = "EC2 instance types for the managed node group"
   type        = list(string)
-  default     = ["t3.small"]
+  default     = ["t3.medium"]
 }
 
 variable "node_capacity_type" {
@@ -54,7 +54,7 @@ variable "node_capacity_type" {
 variable "node_desired_size" {
   description = "Desired number of worker nodes"
   type        = number
-  default     = 1
+  default     = 2
 }
 
 variable "node_min_size" {
@@ -94,7 +94,7 @@ variable "coredns_replica_count" {
 }
 
 variable "allowed_api_cidr" {
-  description = "CIDR allowed to reach the API NodePort (30080) on worker nodes"
+  description = "CIDR allowed to reach the Orders, Execution and Billing API NodePorts on worker nodes"
   type        = string
   default     = "0.0.0.0/0"
 }
@@ -139,6 +139,18 @@ variable "api_node_port" {
   description = "NodePort exposed by api-service on EKS worker nodes"
   type        = number
   default     = 30080
+}
+
+variable "execution_node_port" {
+  description = "NodePort exposed by execution-service on EKS worker nodes"
+  type        = number
+  default     = 30081
+}
+
+variable "billing_node_port" {
+  description = "NodePort exposed by billing on EKS worker nodes"
+  type        = number
+  default     = 30082
 }
 
 variable "ssm_prefix" {
